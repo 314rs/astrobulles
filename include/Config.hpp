@@ -53,7 +53,7 @@ enum modes {on, sine, sine_async, off, audio};
 #define SINE_ASYNC_HZ (0.3)
 #define PANIC_HZ 4
 #define PANIC_MIN_MS 10
-#define PANIC_MIN_MS 10
+#define PANIC_MAX_MS 200
 
 #define FLASH_ON_MS 3 //on time in ms
 #define FLASH_OFF_MS 300 //minimum off time in ms
