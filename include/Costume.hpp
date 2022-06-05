@@ -71,19 +71,13 @@ namespace Costume {
     const int rotaryLen = (sizeof(PINS_ROTARY)/sizeof(*PINS_ROTARY));
     const uint32_t rotaryMask = ((1 << (rotaryLen))-1);
     states_rotary rotaryStable = (states_rotary) 0; // stable state of rotary encoder 
-    uint16_t buttons = 0;
-    const int buttonsLen = (sizeof(PINS_BUTTONS)/sizeof(*PINS_BUTTONS));
-    const uint16_t buttonsMask = ((1 << (buttonsLen))-1);
     modes mode = (modes) 0; // stable current mode
     modes modeOld = (modes) 0; // prev mode
     bool modeChanged = false;
-    bool panic = 0, panicOld = 0;
-    int oldState = 0, state = 0;
     bool oneBit(unsigned v) {return (v && !(v & (v - 1)));};
     double my_sin(double hz) {return (sin((millis()*hz*(2*PI/1000)))/2+0.5);}; // returns double between 0 and 1 depending on hz and current time
     CRGB color;
     uint8_t val;
-
     TaskHandle_t stateTaskHandler = NULL;
     unsigned long offSince = 0;
 
@@ -288,7 +282,9 @@ namespace Costume {
                 } else {
                     vTaskDelete(flashTaskHandler);
                     flashTaskHandler = NULL;
-                    // TODO: all flashes off
+                    for (auto flash : flashes) {
+                        analogWrite(flash.pin, 0);
+                    }
                 }
             }
             if (btnRotate.pressed()) {
@@ -300,7 +296,6 @@ namespace Costume {
                     headSignal.off();
                     frontSignal.off();
                     backSignal.off();
-                    // TODO: all rotates off
                 }
             } 
             if (btnSine.pressed()) {
@@ -358,10 +353,7 @@ namespace Costume {
                 modeChanged = false;
                 Serial.print("Mode: "); Serial.println(mode);
             }
-            //Serial.print("Color: "); Serial.println(rotary, BIN);
             vTaskDelay(2);
-
-            
         }
     };
     void initPins() {
@@ -404,10 +396,5 @@ namespace Costume {
         flashes[2].pin = PIN_HEAD_STROBE;
         flashes[3].pin = PIN_FRONT_WHITE;
         flashes[4].pin = PIN_HEAD_SPOT;
-
-
-
     };
-   
-
 } // namespace Costume
