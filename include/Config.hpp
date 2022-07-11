@@ -18,8 +18,8 @@
 #define PIN_BACK_STROBE 42
 #define PIN_BACK_ROTATE 44
 #define PIN_BACK_LED_R 5
-#define PIN_BACK_LED_G 6
-#define PIN_BACK_LED_B 7
+#define PIN_BACK_LED_G 7
+#define PIN_BACK_LED_B 6
 
 #define PIN_HEAD_STROBE 34
 #define PIN_HEAD_LED_R 8
@@ -28,6 +28,9 @@
 #define PIN_HEAD_SPOT 12
 
 #define PIN_SPEAKER_LEDS 40
+#define PIN_AUDIO_IN A0
+#define NUM_LEDS_ROTATE 24
+
 
 
 int PINS_ROTARY[] = {39,37,35,33,31,29,27,25,23};
@@ -47,22 +50,21 @@ enum modes {on, sine, sine_async, off, audio};
 #define FADE_DURATION 10 // time in seconds from red to red
 #define JUMP_DURATION (0.7) //time in seconds to stay in same color
 
-#define NUM_LEDS_ROTATE 24
-#define STROBE_HZ 1
-#define SINE_HZ (0.3)
-#define SINE_ASYNC_HZ (0.3)
-#define PANIC_HZ 4
-#define PANIC_MIN_MS 10
-#define PANIC_MAX_MS 200
+
+#define SINE_HZ (0.3) // frequency of color change in sine mode
+#define SINE_ASYNC_HZ (0.3) //mean frequency of color change in sine async mode
+#define PANIC_MIN_MS 10 // min ms until next color change in panic mode
+#define PANIC_MAX_MS 200 // max ms until next color change in panic mode
 
 #define FLASH_ON_MS 3 //on time in ms
 #define FLASH_OFF_MS 300 //minimum off time in ms
-#define FRONT_WHITE_ON_MS 3
-#define FRONT_WHITE_OFF_MS 1000
-#define ROTATES_TAIL_LENGTH 2 // Bigger = shorter
+#define FRONT_WHITE_ON_MS 3 // on-time of front white led strips (when flashes are enabled)
+#define FRONT_WHITE_OFF_MS 1000 // off-time of front white led strips (when flashes are enabled)
+#define ROTATES_TAIL_LENGTH 3 // bigger value = shorter tail
+#define MAX_BRIGHTNESS 100 // from 0 to 255
+#define MAX_BRIGHTNESS_PANIC 255 // from 0 to 255
 
 #define ROTATE_HZ (0.5)
 
-#define PIN_AUDIO_IN A0
 
 #endif //CONFIG
