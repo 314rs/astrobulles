@@ -46,8 +46,9 @@ enum states_rotary {red, green, blue, cyan, magenta, yellow, fade, jump, fade_as
 enum modes {on, sine, sine_async, off, audio};
 
 #define FADE_DURATION 10 // time in seconds from red to red
-#define JUMP_MS 800 //time in ms to stay in same color
-#define FALL_MS 400 //duration in ms leds fall down in jump mode
+#define FADE_ASYNC_DURATION 3 // time in seconds from red to red
+#define JUMP_MS 1000 //time in ms to stay in same color
+#define FALL_MS 990 //duration in ms leds fall down in jump mode (recommendation: JUMP_MS - 10)
 
 
 #define SINE_HZ (0.3) // frequency of color change in sine mode

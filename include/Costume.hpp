@@ -167,30 +167,33 @@ namespace Costume {
                     headLED.setColor(color);
                     analogWrite(LED_BUILTIN, color.getAverageLight());
                     jumptime = jumpmillis;
+                    FastLED.clear();
                 }
-                num =int((jumpmillis - jumptime)/double(FALL_MS) * 12);
-                num = num > 12 ? 12 : num;
-                fill_solid(frontRGB1, num, color);
+                FastLED.clear();
+                num =int((jumpmillis - jumptime)/double(FALL_MS) * 11);
+                num = num > 11 ? 11 : num;
+                int start = (num - 5) < 0 ? 0 : num - 5;
+                fill_gradient_RGB(frontRGB1,start, dimm(color, 50), num, color);
                 fill_snake(frontRGB1, NUM_LEDS_FRONT_RGB_1, 12);
-                fill_solid(frontRGB2, num, color);
+                fill_gradient_RGB(frontRGB2,11-start, dimm(color, 50),11 -num, color);
                 fill_snake(frontRGB2, NUM_LEDS_FRONT_RGB_2, 12);
                 FastLED.show(); 
                 vTaskDelay(0);
                 continue;
 
             } else if (rotaryStable == states_rotary::fade_async) {
-                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_DURATION*1.1)%256, 255, MAX_BRIGHTNESS), color) ;
-                fill_rainbow(frontRGB1, NUM_LEDS_FRONT_RGB_1, (int)((millis()>>2)/FADE_DURATION*1.1)%256);
-                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_DURATION*0.97)%256, 255, MAX_BRIGHTNESS), color) ;
-                fill_rainbow(frontRGB2, NUM_LEDS_FRONT_RGB_2, (int)((millis()>>2)/FADE_DURATION*1.05)%256);
+                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_ASYNC_DURATION*1.1)%256, 255, MAX_BRIGHTNESS), color) ;
+                fill_rainbow(frontRGB1, NUM_LEDS_FRONT_RGB_1, (int)((millis()>>2)/FADE_ASYNC_DURATION*1.1)%256);
+                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_ASYNC_DURATION*0.97)%256, 255, MAX_BRIGHTNESS), color) ;
+                fill_rainbow(frontRGB2, NUM_LEDS_FRONT_RGB_2, (int)((millis()>>2)/FADE_ASYNC_DURATION*1.05)%256);
                 FastLED.show();
-                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_DURATION*0.9)%256, 255, 255), color) ;
+                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_ASYNC_DURATION*0.9)%256, 255, 255), color) ;
                 frontLED.setColor(color, MAX_BRIGHTNESS);
-                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_DURATION*0.93)%256, 255, 255), color) ;
+                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_ASYNC_DURATION*0.93)%256, 255, 255), color) ;
                 backLED.setColor(color, MAX_BRIGHTNESS);
-                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_DURATION)%256, 255, 255), color) ;
+                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_ASYNC_DURATION)%256, 255, 255), color) ;
                 headLED.setColor(color, MAX_BRIGHTNESS);
-                analogWrite(LED_BUILTIN, dimm(color, 0xff*my_sin(FADE_DURATION)).getAverageLight());
+                analogWrite(LED_BUILTIN, dimm(color, 0xff*my_sin(FADE_ASYNC_DURATION)).getAverageLight());
                 vTaskDelay(0);
                 continue;
             }
@@ -386,7 +389,7 @@ namespace Costume {
             
             if (swOn.released()) {
                 mode = modes::on;
-                xTaskCreate(update, "state", 4096, NULL, 1, &stateTaskHandler);
+                xTaskCreate(update, "state", 2048, NULL, 1, &stateTaskHandler);
             } 
             // button-reading finished. now do stuff
 
