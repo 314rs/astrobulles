@@ -4,6 +4,8 @@
 #ifndef CONFIG
 #define CONFIG
 
+
+// do not change
 #define PIN_FRONT_STROBE 22
 #define PIN_FRONT_ROTATE 26
 #define PIN_FRONT_RGB_1 28
@@ -41,9 +43,13 @@ int PINS_BUTTONS[] = {46,41,43,45};
 #define PIN_BTN_PANIC 47
 #define PIN_ON_SWITCH 24
 
-CRGB colors[] = {CRGB::Red, CRGB::Green, CRGB::Blue, CRGB::Cyan, CRGB::Magenta, CRGB::Yellow};
 enum states_rotary {red, green, blue, cyan, magenta, yellow, fade, jump, fade_async};
 enum modes {on, sine, sine_async, off, audio};
+
+
+// feel free to change the following parameters
+
+CRGB colors[] = {CRGB::Red, CRGB::Green, CRGB::Blue, CRGB::Cyan, CRGB::Magenta, CRGB::Yellow}; // length has to be 6
 
 #define FADE_DURATION 10 // time in seconds from red to red
 #define FADE_ASYNC_DURATION 3 // time in seconds from red to red
@@ -65,7 +71,7 @@ enum modes {on, sine, sine_async, off, audio};
 #define MAX_BRIGHTNESS_PANIC 255 // from 0 to 255#
 #define COLOR_OFFSET 127 // from 0 to 255 color offset when in fade mode
 
-#define ROTATE_HZ (0.5)
+#define ROTATE_HZ (0.5) // frequency of rotating light
 
 
 #endif //CONFIG
