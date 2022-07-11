@@ -9,6 +9,22 @@ CRGB dimm(CRGB color, uint8_t val) {
         return color.nscale8(val);
     }
 
+void fill_snake2(CRGB *leds, uint16_t numLeds, uint16_t filledLeds) {
+    for (unsigned int i = filledLeds; i < numLeds; i++) {
+        leds[i] = leds[i%filledLeds];
+    }
+}
+
+void fill_snake(CRGB *leds, uint16_t numLeds, uint16_t filledLeds) {
+    for (unsigned int i = filledLeds; i< numLeds; i++) {
+        if (int(i/filledLeds)&1)
+            leds[i] = leds[filledLeds-i%filledLeds-1];
+        else 
+            leds[i] = leds[i%filledLeds];
+
+    }
+}
+
 struct Flash {
     int pin;
     bool on = false;
@@ -71,21 +87,16 @@ namespace Costume {
     const int rotaryLen = (sizeof(PINS_ROTARY)/sizeof(*PINS_ROTARY));
     const uint32_t rotaryMask = ((1 << (rotaryLen))-1);
     states_rotary rotaryStable = (states_rotary) 0; // stable state of rotary encoder 
-    uint16_t buttons = 0;
-    const int buttonsLen = (sizeof(PINS_BUTTONS)/sizeof(*PINS_BUTTONS));
-    const uint16_t buttonsMask = ((1 << (buttonsLen))-1);
     modes mode = (modes) 0; // stable current mode
     modes modeOld = (modes) 0; // prev mode
     bool modeChanged = false;
-    bool panic = 0, panicOld = 0;
-    int oldState = 0, state = 0;
     bool oneBit(unsigned v) {return (v && !(v & (v - 1)));};
     double my_sin(double hz) {return (sin((millis()*hz*(2*PI/1000)))/2+0.5);}; // returns double between 0 and 1 depending on hz and current time
-    CRGB color;
+    CRGB color, color_gradient;
     uint8_t val;
-
     TaskHandle_t stateTaskHandler = NULL;
     unsigned long offSince = 0;
+
 
     void frontWhite(uint8_t val){
         analogWrite(PIN_FRONT_WHITE, val);
@@ -123,56 +134,91 @@ namespace Costume {
  
 
     void update(void*) {
-        
+        unsigned long jumptime = 0;
         while (1) {
             if ((int) rotaryStable < 6) {
                 color = colors[(int) rotaryStable];
             } else if (rotaryStable == states_rotary::fade) {
-                hsv2rgb_rainbow(CHSV(((int)(millis()>>2)/FADE_DURATION)%256, 255, 255), color) ;
-            } else if (rotaryStable == states_rotary::jump) {
-                hsv2rgb_rainbow(CHSV((int)(millis()/(1000)*73)%256, 255, 255), color);
-            } else if (rotaryStable == states_rotary::fade_async) {
-                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_DURATION*1.1)%256, 255, 255), color) ;
-                for (int i = 0; i < NUM_LEDS_FRONT_RGB_1; i++) {
-                    frontRGB1[i] = color;
-                }
-                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_DURATION*0.97)%256, 255, 255), color) ;
-
-                for (int i = 0; i < NUM_LEDS_FRONT_RGB_2; i++) {
-                    frontRGB2[i] = color;
-                }
+                uint8_t hue = ((millis()>>2)/FADE_DURATION)%256;
+                hsv2rgb_rainbow(CHSV(hue, 255, 255), color);
+                hsv2rgb_rainbow(CHSV(hue-COLOR_OFFSET, 255, 255), color_gradient);
+                color.nscale8(MAX_BRIGHTNESS);
+                color_gradient.nscale8(MAX_BRIGHTNESS);
+                fill_gradient_RGB(frontRGB1, 12, color, color_gradient);
+                fill_snake2(frontRGB1, NUM_LEDS_FRONT_RGB_1, 12);
+                fill_gradient_RGB(frontRGB2, 12, color_gradient, color);
+                fill_snake2(frontRGB2, NUM_LEDS_FRONT_RGB_2, 12);
                 FastLED.show();
-                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_DURATION*0.9)%256, 255, 255), color) ;
                 frontLED.setColor(color);
-                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_DURATION*0.93)%256, 255, 255), color) ;
                 backLED.setColor(color);
-                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_DURATION)%256, 255, 255), color) ;
                 headLED.setColor(color);
-                analogWrite(LED_BUILTIN, dimm(color, 0xff*my_sin(FADE_DURATION)).getAverageLight());
+                analogWrite(LED_BUILTIN, color.getAverageLight());
+                vTaskDelay(0);
+                continue;
+
+            } else if (rotaryStable == states_rotary::jump) {
+                unsigned long jumpmillis = millis();
+                uint8_t hue = ((int)(jumpmillis/JUMP_MS))*73%256;
+                int num = (int(jumpmillis*double(FALL_MS)/JUMP_MS)%256) > 60 ? 12 : (int(jumpmillis*double(FALL_MS)/JUMP_MS)%256)/5;
+                if (jumpmillis - jumptime > JUMP_MS){
+                    hsv2rgb_rainbow(CHSV(hue, 255, MAX_BRIGHTNESS), color);
+                    frontLED.setColor(color);
+                    backLED.setColor(color);
+                    headLED.setColor(color);
+                    analogWrite(LED_BUILTIN, color.getAverageLight());
+                    jumptime = jumpmillis;
+                    FastLED.clear();
+                }
+                FastLED.clear();
+                num =int((jumpmillis - jumptime)/double(FALL_MS) * 11);
+                num = num > 11 ? 11 : num;
+                int start = (num - 5) < 0 ? 0 : num - 5;
+                fill_gradient_RGB(frontRGB1,start, dimm(color, 50), num, color);
+                fill_snake(frontRGB1, NUM_LEDS_FRONT_RGB_1, 12);
+                fill_gradient_RGB(frontRGB2,11-start, dimm(color, 50),11 -num, color);
+                fill_snake(frontRGB2, NUM_LEDS_FRONT_RGB_2, 12);
+                FastLED.show(); 
+                vTaskDelay(0);
+                continue;
+
+            } else if (rotaryStable == states_rotary::fade_async) {
+                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_ASYNC_DURATION*1.1)%256, 255, MAX_BRIGHTNESS), color) ;
+                fill_rainbow(frontRGB1, NUM_LEDS_FRONT_RGB_1, (int)((millis()>>2)/FADE_ASYNC_DURATION*1.1)%256);
+                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_ASYNC_DURATION*0.97)%256, 255, MAX_BRIGHTNESS), color) ;
+                fill_rainbow(frontRGB2, NUM_LEDS_FRONT_RGB_2, (int)((millis()>>2)/FADE_ASYNC_DURATION*1.05)%256);
+                FastLED.show();
+                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_ASYNC_DURATION*0.9)%256, 255, 255), color) ;
+                frontLED.setColor(color, MAX_BRIGHTNESS);
+                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_ASYNC_DURATION*0.93)%256, 255, 255), color) ;
+                backLED.setColor(color, MAX_BRIGHTNESS);
+                hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_ASYNC_DURATION)%256, 255, 255), color) ;
+                headLED.setColor(color, MAX_BRIGHTNESS);
+                analogWrite(LED_BUILTIN, dimm(color, 0xff*my_sin(FADE_ASYNC_DURATION)).getAverageLight());
                 vTaskDelay(0);
                 continue;
             }
             if (mode == modes::on) {
-                val = 0xff;
+                val = MAX_BRIGHTNESS;
                 setColor(color, val);
+                
             } else if (mode == modes::sine) {
-                val = 0xff*my_sin(SINE_HZ);
+                val = MAX_BRIGHTNESS*my_sin(SINE_HZ);
                 setColor(color, val);
             } else if (mode == modes::audio) {
-                val = 0xff;
+                val = MAX_BRIGHTNESS;
                 setColor(color, val);
             } else if (mode == modes::sine_async) {
                 for (int i = 0; i < NUM_LEDS_FRONT_RGB_1; i++) {
-                    frontRGB1[i] = dimm(color, 0xff*my_sin(SINE_ASYNC_HZ*1.05));
+                    frontRGB1[i] = dimm(color, MAX_BRIGHTNESS*my_sin(SINE_ASYNC_HZ*1.05));
                 }
                 for (int i = 0; i < NUM_LEDS_FRONT_RGB_2; i++) {
-                    frontRGB2[i] = dimm(color, 0xff*my_sin(SINE_ASYNC_HZ*1.1));
+                    frontRGB2[i] = dimm(color, MAX_BRIGHTNESS*my_sin(SINE_ASYNC_HZ*1.1));
                 }
                 FastLED.show();
-                frontLED.setColor(dimm(color, 0xff*my_sin(SINE_ASYNC_HZ*0.97)));
-                backLED.setColor(dimm(color, 0xff*my_sin(SINE_ASYNC_HZ*0.93)));
-                headLED.setColor(dimm(color, 0xff*my_sin(SINE_ASYNC_HZ*0.90)));
-                analogWrite(LED_BUILTIN, dimm(color.getAverageLight(), 0xff*my_sin(SINE_ASYNC_HZ)));
+                frontLED.setColor(dimm(color, MAX_BRIGHTNESS*my_sin(SINE_ASYNC_HZ*0.97)));
+                backLED.setColor(dimm(color, MAX_BRIGHTNESS*my_sin(SINE_ASYNC_HZ*0.93)));
+                headLED.setColor(dimm(color, MAX_BRIGHTNESS*my_sin(SINE_ASYNC_HZ*0.90)));
+                analogWrite(LED_BUILTIN, dimm(color.getAverageLight(), MAX_BRIGHTNESS*my_sin(SINE_ASYNC_HZ)));
             }
             // Serial.print("color: "); Serial.print(color); Serial.print(" , val: "); Serial.println(val);
             vTaskDelay(0);
@@ -187,6 +233,7 @@ namespace Costume {
         }
     };
     void flashFun(void*) { 
+
         while (1) {
             for (int i = 0; i < 3; i++) {
                 if (!flashes[i].on && (millis()-flashes[i].time > FLASH_OFF_MS)) {
@@ -213,6 +260,8 @@ namespace Costume {
         };
     void panicFun(){ 
         vTaskSuspendAll(); 
+        FastLED.setBrightness(MAX_BRIGHTNESS_PANIC);
+
         unsigned long time = millis();
         uint8_t frontHue1 = 0;
         uint8_t frontHue2 = 0;
@@ -241,17 +290,17 @@ namespace Costume {
                 }
                 xmillis = millis();
                 next = random(PANIC_MIN_MS, PANIC_MAX_MS);
-                hsv2rgb_rainbow(CHSV(random(0xff), 255, 255), color);
+                hsv2rgb_rainbow(CHSV(random(0xff), 255, MAX_BRIGHTNESS_PANIC), color);
                 fill_solid(frontRGB1, NUM_LEDS_FRONT_RGB_1, color);
-                hsv2rgb_rainbow(CHSV(random(0xff), 255, 255), color);
+                hsv2rgb_rainbow(CHSV(random(0xff), 255, MAX_BRIGHTNESS_PANIC), color);
                 fill_solid(frontRGB2, NUM_LEDS_FRONT_RGB_2, color);
-                hsv2rgb_rainbow(CHSV(random(0xff), 255, 255), color);
+                hsv2rgb_rainbow(CHSV(random(0xff), 255, MAX_BRIGHTNESS_PANIC), color);
                 frontLED.setColor(color);
-                hsv2rgb_rainbow(CHSV(random(0xff), 255, 255), color);
+                hsv2rgb_rainbow(CHSV(random(0xff), 255, MAX_BRIGHTNESS_PANIC), color);
                 backLED.setColor(color);
-                hsv2rgb_rainbow(CHSV(random(0xff), 255, 255), color);
+                hsv2rgb_rainbow(CHSV(random(0xff), 255, MAX_BRIGHTNESS_PANIC), color);
                 headLED.setColor(color);
-                hsv2rgb_rainbow(CHSV(random(0xff), 255, 255), color);
+                hsv2rgb_rainbow(CHSV(random(0xff), 255, MAX_BRIGHTNESS_PANIC), color);
             }
             frontSignal.rotate(color);
             backSignal.rotate(color);
@@ -261,6 +310,7 @@ namespace Costume {
             Serial.println("in panic Fun"); vTaskDelay(10);
         }
         off();
+        FastLED.setBrightness(MAX_BRIGHTNESS);
         xTaskResumeAll(); 
     };
 
@@ -288,7 +338,9 @@ namespace Costume {
                 } else {
                     vTaskDelete(flashTaskHandler);
                     flashTaskHandler = NULL;
-                    // TODO: all flashes off
+                    for (auto flash : flashes) {
+                        analogWrite(flash.pin, 0);
+                    }
                 }
             }
             if (btnRotate.pressed()) {
@@ -300,7 +352,6 @@ namespace Costume {
                     headSignal.off();
                     frontSignal.off();
                     backSignal.off();
-                    // TODO: all rotates off
                 }
             } 
             if (btnSine.pressed()) {
@@ -342,7 +393,7 @@ namespace Costume {
             } 
             // button-reading finished. now do stuff
 
-            if ((mode == modes::sine) || (mode == modes::sine_async) || (rotateTaskHandler != NULL) || (flashTaskHandler != NULL)) {
+            if (((mode == modes::sine) || (mode == modes::sine_async) || (rotateTaskHandler != NULL) || (flashTaskHandler != NULL)) && (mode != modes::off)) {
                 headSpot(0xff);
             } else {
                 headSpot(0);
@@ -358,10 +409,7 @@ namespace Costume {
                 modeChanged = false;
                 Serial.print("Mode: "); Serial.println(mode);
             }
-            //Serial.print("Color: "); Serial.println(rotary, BIN);
             vTaskDelay(2);
-
-            
         }
     };
     void initPins() {
@@ -404,10 +452,6 @@ namespace Costume {
         flashes[2].pin = PIN_HEAD_STROBE;
         flashes[3].pin = PIN_FRONT_WHITE;
         flashes[4].pin = PIN_HEAD_SPOT;
-
-
-
+        FastLED.setBrightness(MAX_BRIGHTNESS);
     };
-   
-
 } // namespace Costume
