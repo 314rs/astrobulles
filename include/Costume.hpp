@@ -9,6 +9,22 @@ CRGB dimm(CRGB color, uint8_t val) {
         return color.nscale8(val);
     }
 
+void fill_snake2(CRGB *leds, uint16_t numLeds, uint16_t filledLeds) {
+    for (unsigned int i = filledLeds; i < numLeds; i++) {
+        leds[i] = leds[i%filledLeds];
+    }
+}
+
+void fill_snake(CRGB *leds, uint16_t numLeds, uint16_t filledLeds) {
+    for (unsigned int i = filledLeds; i< numLeds; i++) {
+        if (int(i/filledLeds)&1)
+            leds[i] = leds[filledLeds-i%filledLeds-1];
+        else 
+            leds[i] = leds[i%filledLeds];
+
+    }
+}
+
 struct Flash {
     int pin;
     bool on = false;
@@ -76,10 +92,11 @@ namespace Costume {
     bool modeChanged = false;
     bool oneBit(unsigned v) {return (v && !(v & (v - 1)));};
     double my_sin(double hz) {return (sin((millis()*hz*(2*PI/1000)))/2+0.5);}; // returns double between 0 and 1 depending on hz and current time
-    CRGB color;
+    CRGB color, color_gradient;
     uint8_t val;
     TaskHandle_t stateTaskHandler = NULL;
     unsigned long offSince = 0;
+
 
     void frontWhite(uint8_t val){
         analogWrite(PIN_FRONT_WHITE, val);
@@ -117,20 +134,55 @@ namespace Costume {
  
 
     void update(void*) {
-        
+        unsigned long jumptime = 0;
         while (1) {
             if ((int) rotaryStable < 6) {
                 color = colors[(int) rotaryStable];
             } else if (rotaryStable == states_rotary::fade) {
-                hsv2rgb_rainbow(CHSV(((int)(millis()>>2)/FADE_DURATION)%256, 255, 255), color) ;
+                uint8_t hue = ((millis()>>2)/FADE_DURATION)%256;
+                hsv2rgb_rainbow(CHSV(hue, 255, 255), color);
+                hsv2rgb_rainbow(CHSV(hue-COLOR_OFFSET, 255, 255), color_gradient);
+                color.nscale8(MAX_BRIGHTNESS);
+                color_gradient.nscale8(MAX_BRIGHTNESS);
+                fill_gradient_RGB(frontRGB1, 12, color, color_gradient);
+                fill_snake2(frontRGB1, NUM_LEDS_FRONT_RGB_1, 12);
+                fill_gradient_RGB(frontRGB2, 12, color_gradient, color);
+                fill_snake2(frontRGB2, NUM_LEDS_FRONT_RGB_2, 12);
+                FastLED.show();
+                frontLED.setColor(color);
+                backLED.setColor(color);
+                headLED.setColor(color);
+                analogWrite(LED_BUILTIN, color.getAverageLight());
+                vTaskDelay(0);
+                continue;
+
             } else if (rotaryStable == states_rotary::jump) {
-                hsv2rgb_rainbow(CHSV((int)(millis()/(1000)*73)%256, 255, 255), color);
+                unsigned long jumpmillis = millis();
+                uint8_t hue = ((int)(jumpmillis/JUMP_MS))*73%256;
+                int num = (int(jumpmillis*double(FALL_MS)/JUMP_MS)%256) > 60 ? 12 : (int(jumpmillis*double(FALL_MS)/JUMP_MS)%256)/5;
+                if (jumpmillis - jumptime > JUMP_MS){
+                    hsv2rgb_rainbow(CHSV(hue, 255, MAX_BRIGHTNESS), color);
+                    frontLED.setColor(color);
+                    backLED.setColor(color);
+                    headLED.setColor(color);
+                    analogWrite(LED_BUILTIN, color.getAverageLight());
+                    jumptime = jumpmillis;
+                }
+                num =int((jumpmillis - jumptime)/double(FALL_MS) * 12);
+                num = num > 12 ? 12 : num;
+                fill_solid(frontRGB1, num, color);
+                fill_snake(frontRGB1, NUM_LEDS_FRONT_RGB_1, 12);
+                fill_solid(frontRGB2, num, color);
+                fill_snake(frontRGB2, NUM_LEDS_FRONT_RGB_2, 12);
+                FastLED.show(); 
+                vTaskDelay(0);
+                continue;
+
             } else if (rotaryStable == states_rotary::fade_async) {
                 hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_DURATION*1.1)%256, 255, MAX_BRIGHTNESS), color) ;
-                fill_solid(frontRGB1, NUM_LEDS_FRONT_RGB_1, color); //change to fade
-                //fill_gradient(frontRGB1, NUM_LEDS_FRONT_RGB_1/5,color, color -20);
+                fill_rainbow(frontRGB1, NUM_LEDS_FRONT_RGB_1, (int)((millis()>>2)/FADE_DURATION*1.1)%256);
                 hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_DURATION*0.97)%256, 255, MAX_BRIGHTNESS), color) ;
-                fill_solid(frontRGB2, NUM_LEDS_FRONT_RGB_2, color); //change to fade
+                fill_rainbow(frontRGB2, NUM_LEDS_FRONT_RGB_2, (int)((millis()>>2)/FADE_DURATION*1.05)%256);
                 FastLED.show();
                 hsv2rgb_rainbow(CHSV((int)((millis()>>2)/FADE_DURATION*0.9)%256, 255, 255), color) ;
                 frontLED.setColor(color, MAX_BRIGHTNESS);
@@ -145,6 +197,7 @@ namespace Costume {
             if (mode == modes::on) {
                 val = MAX_BRIGHTNESS;
                 setColor(color, val);
+                
             } else if (mode == modes::sine) {
                 val = MAX_BRIGHTNESS*my_sin(SINE_HZ);
                 setColor(color, val);
@@ -177,6 +230,7 @@ namespace Costume {
         }
     };
     void flashFun(void*) { 
+
         while (1) {
             for (int i = 0; i < 3; i++) {
                 if (!flashes[i].on && (millis()-flashes[i].time > FLASH_OFF_MS)) {
@@ -203,6 +257,8 @@ namespace Costume {
         };
     void panicFun(){ 
         vTaskSuspendAll(); 
+        FastLED.setBrightness(MAX_BRIGHTNESS_PANIC);
+
         unsigned long time = millis();
         uint8_t frontHue1 = 0;
         uint8_t frontHue2 = 0;
@@ -251,6 +307,7 @@ namespace Costume {
             Serial.println("in panic Fun"); vTaskDelay(10);
         }
         off();
+        FastLED.setBrightness(MAX_BRIGHTNESS);
         xTaskResumeAll(); 
     };
 
@@ -329,11 +386,11 @@ namespace Costume {
             
             if (swOn.released()) {
                 mode = modes::on;
-                xTaskCreate(update, "state", 2048, NULL, 1, &stateTaskHandler);
+                xTaskCreate(update, "state", 4096, NULL, 1, &stateTaskHandler);
             } 
             // button-reading finished. now do stuff
 
-            if ((mode == modes::sine) || (mode == modes::sine_async) || (rotateTaskHandler != NULL) || (flashTaskHandler != NULL)) {
+            if (((mode == modes::sine) || (mode == modes::sine_async) || (rotateTaskHandler != NULL) || (flashTaskHandler != NULL)) && (mode != modes::off)) {
                 headSpot(0xff);
             } else {
                 headSpot(0);
@@ -392,5 +449,6 @@ namespace Costume {
         flashes[2].pin = PIN_HEAD_STROBE;
         flashes[3].pin = PIN_FRONT_WHITE;
         flashes[4].pin = PIN_HEAD_SPOT;
+        FastLED.setBrightness(MAX_BRIGHTNESS);
     };
 } // namespace Costume
